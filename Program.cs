@@ -45,7 +45,11 @@ namespace monitor_metrics_bridge
       var clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
       var secret = Environment.GetEnvironmentVariable("AZURE_CLIENT_SECRET");
       var subscriptionId = Environment.GetEnvironmentVariable("AZURE_SUBSCRIPTION_ID");
+
+      // Read other args
       var targetEndpoint = Environment.GetEnvironmentVariable("TARGET_ENDPOINT");
+
+      int intervalSeconds = 60;
 
       Console.WriteLine($"Authenticating to Azure");
 
@@ -62,7 +66,7 @@ namespace monitor_metrics_bridge
       var metricDefs = await azure.MetricDefinitions.ListByResourceAsync(resourceId);
 
       var endTime = DateTime.UtcNow;
-      var startTime = endTime.AddMinutes(-1);
+      var startTime = endTime.AddSeconds(-intervalSeconds);
       var metricsOut = new List<Metric>();
 
       foreach (var md in metricDefs)
