@@ -23,7 +23,7 @@ namespace monitor_metrics_bridge
   {
     // private static MonitorClient readOnlyClient;
 
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
       DotNetEnv.Env.Load();
 
@@ -45,21 +45,39 @@ namespace monitor_metrics_bridge
 
       Console.WriteLine($"Authenticating to Azure");
 
-      AzureCredentials credentials = SdkContext.AzureCredentialsFactory.FromServicePrincipal(clientId, secret, tenantId, AzureEnvironment.AzureGlobalCloud);
+      AzureCredentials credentials = SdkContext.AzureCredentialsFactory
+        .FromServicePrincipal(clientId, secret, tenantId, AzureEnvironment.AzureGlobalCloud);
       IAzure azure = Azure
-              .Authenticate(credentials)
-              .WithDefaultSubscription();
+        .Authenticate(credentials)
+        .WithDefaultSubscription();
 
 
       // Get a list of available metrics, types
       Console.WriteLine($"Reading metrics for resource ${resourceId}");
 
-      var metricDefs = azure.MetricDefinitions.ListByResource(resourceId);
+      var metricDefs = await azure.MetricDefinitions.ListByResourceAsync(resourceId);
 
       foreach (var md in metricDefs)
       {
-        Console.WriteLine($"{md.Name.Value} : {md.Unit}");
+        Console.WriteLine($"{md.Name.Value} : {md.Unit} : {md.PrimaryAggregationType.ToString()}");
+        var metricsColl = await md.DefineQuery()
+          .StartingFrom(DateTime.UtcNow.AddMinutes(-1))
+          .EndsBefore(DateTime.UtcNow)
+          .ExecuteAsync();
+
+        foreach (var metric in metricsColl.Metrics)
+        {
+          foreach (var ts in metric.Timeseries)
+          {
+            foreach (var data in ts.Data)
+            {
+              Console.WriteLine($"Total: {data.Total} Count: {data.Count} Timestamp: {data.TimeStamp.ToShortTimeString()}");
+            }
+          }
+        }
       }
+
+
 
     }
 
