@@ -1,4 +1,7 @@
 ﻿using System;
+using System.Text.Json;
+using System.Text;
+using System.Net.Http;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -21,7 +24,7 @@ namespace monitor_metrics_bridge
 {
   public class Program
   {
-    // private static MonitorClient readOnlyClient;
+    private static readonly HttpClient client = new HttpClient();
 
     public static async Task Main(string[] args)
     {
@@ -42,6 +45,7 @@ namespace monitor_metrics_bridge
       var clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
       var secret = Environment.GetEnvironmentVariable("AZURE_CLIENT_SECRET");
       var subscriptionId = Environment.GetEnvironmentVariable("AZURE_SUBSCRIPTION_ID");
+      var targetEndpoint = Environment.GetEnvironmentVariable("TARGET_ENDPOINT");
 
       Console.WriteLine($"Authenticating to Azure");
 
@@ -57,12 +61,16 @@ namespace monitor_metrics_bridge
 
       var metricDefs = await azure.MetricDefinitions.ListByResourceAsync(resourceId);
 
+      var endTime = DateTime.UtcNow;
+      var startTime = endTime.AddMinutes(-1);
+      var metricsOut = new List<Metric>();
+
       foreach (var md in metricDefs)
       {
         Console.WriteLine($"{md.Name.Value} : {md.Unit} : {md.PrimaryAggregationType.ToString()}");
         var metricsColl = await md.DefineQuery()
-          .StartingFrom(DateTime.UtcNow.AddMinutes(-1))
-          .EndsBefore(DateTime.UtcNow)
+          .StartingFrom(startTime)
+          .EndsBefore(endTime)
           .ExecuteAsync();
 
         foreach (var metric in metricsColl.Metrics)
@@ -72,13 +80,29 @@ namespace monitor_metrics_bridge
             foreach (var data in ts.Data)
             {
               Console.WriteLine($"Total: {data.Total} Count: {data.Count} Timestamp: {data.TimeStamp.ToShortTimeString()}");
+              metricsOut.Add(new Metric("", resourceId, md.Name.Value, endTime, data.Total));
             }
           }
         }
       }
 
+      Console.WriteLine($"Sending data to PowerBI endpoint {targetEndpoint}");
+      await SendMetrics(targetEndpoint, metricsOut);
+      Console.WriteLine($"Success");
 
 
+    }
+
+    static async Task SendMetrics(string endpoint, IEnumerable<Metric> metrics)
+    {
+      var outJson = JsonSerializer.Serialize(metrics);
+      Console.WriteLine($"Data:\n{outJson}");
+      var result = await client.PostAsync(endpoint, new StringContent(outJson, Encoding.UTF8, "application/json"));
+      var resultBodyString = await result.Content.ReadAsStringAsync();
+      if (!result.IsSuccessStatusCode)
+      {
+        throw new Exception($"Error sending data: {result.ReasonPhrase}; status ${result.StatusCode}; \nbody: ${resultBodyString}");
+      }
     }
 
   }
