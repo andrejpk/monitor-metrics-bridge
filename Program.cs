@@ -37,63 +37,27 @@ namespace monitor_metrics_bridge
       {
         throw new ArgumentException($"Usage: AzureMonitorCSharpExamples <resourceId> <namespace> (num supplied: {args.Length})");
       }
-      string resourceId = args[0];
+      string resourceID = args[0];
 
       // Create Azure ARM connection, auth
       Console.WriteLine("Reading config from env variables");
-      var tenantId = Environment.GetEnvironmentVariable("AZURE_TENANT_ID");
-      var clientId = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
+      var tenantID = Environment.GetEnvironmentVariable("AZURE_TENANT_ID");
+      var clientID = Environment.GetEnvironmentVariable("AZURE_CLIENT_ID");
       var secret = Environment.GetEnvironmentVariable("AZURE_CLIENT_SECRET");
-      var subscriptionId = Environment.GetEnvironmentVariable("AZURE_SUBSCRIPTION_ID");
+      var subscriptionID = Environment.GetEnvironmentVariable("AZURE_SUBSCRIPTION_ID");
+
+      MetricsReader metricsReader = new MetricsReader(tenantID, clientID, secret, subscriptionID);
 
       // Read other args
       var targetEndpoint = Environment.GetEnvironmentVariable("TARGET_ENDPOINT");
 
       int intervalSeconds = 60;
 
-      Console.WriteLine($"Authenticating to Azure");
-
-      AzureCredentials credentials = SdkContext.AzureCredentialsFactory
-        .FromServicePrincipal(clientId, secret, tenantId, AzureEnvironment.AzureGlobalCloud);
-      IAzure azure = Azure
-        .Authenticate(credentials)
-        .WithDefaultSubscription();
-
-
-      // Get a list of available metrics, types
-      Console.WriteLine($"Reading metrics for resource ${resourceId}");
-
-      var metricDefs = await azure.MetricDefinitions.ListByResourceAsync(resourceId);
-
-      var endTime = DateTime.UtcNow;
-      var startTime = endTime.AddSeconds(-intervalSeconds);
-      var metricsOut = new List<Metric>();
-
-      foreach (var md in metricDefs)
-      {
-        Console.WriteLine($"{md.Name.Value} : {md.Unit} : {md.PrimaryAggregationType.ToString()}");
-        var metricsColl = await md.DefineQuery()
-          .StartingFrom(startTime)
-          .EndsBefore(endTime)
-          .ExecuteAsync();
-
-        foreach (var metric in metricsColl.Metrics)
-        {
-          foreach (var ts in metric.Timeseries)
-          {
-            foreach (var data in ts.Data)
-            {
-              Console.WriteLine($"Total: {data.Total} Count: {data.Count} Timestamp: {data.TimeStamp.ToShortTimeString()}");
-              metricsOut.Add(new Metric("", resourceId, md.Name.Value, endTime, data.Total));
-            }
-          }
-        }
-      }
+      var metricsOut = await metricsReader.ReadMetrics(resourceID, intervalSeconds);
 
       Console.WriteLine($"Sending data to PowerBI endpoint {targetEndpoint}");
       await SendMetrics(targetEndpoint, metricsOut);
       Console.WriteLine($"Success");
-
 
     }
 
