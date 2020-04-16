@@ -54,6 +54,7 @@ namespace monitor_metrics_bridge
       var endTimeChecked = (endTime ?? DateTime.UtcNow);
       var startTime = endTimeChecked.AddSeconds(-windowSeconds);
       var metricsOut = new List<Metric>();
+      Console.WriteLine($"Reading metrics from {startTime} to {endTimeChecked}");
 
       foreach (var md in metricDefs)
       {

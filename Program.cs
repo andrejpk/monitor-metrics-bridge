@@ -36,12 +36,38 @@ namespace monitor_metrics_bridge
       PowerBIMetricsSender sender = new PowerBIMetricsSender();
 
       int intervalSeconds = 60;
+      DateTime endTime = DateTime.UtcNow;
 
-      var metricsOut = await metricsReader.ReadMetrics(resourceID, intervalSeconds);
+      while (true)
+      {
+        // do a sleep here if it's not time yet
+        var msToWait = (int)(endTime - DateTime.UtcNow).TotalMilliseconds;
+        if (msToWait > 0)
+        {
+          Console.WriteLine($"Sleeping for {msToWait} ms");
+          Thread.Sleep(msToWait);
+        }
 
-      Console.WriteLine($"Sending data to PowerBI endpoint {targetEndpoint}");
-      await sender.SendMetrics(targetEndpoint, metricsOut);
-      Console.WriteLine($"Success");
+        // read the metrics from Azure Monitor
+        var metricsOut = await metricsReader.ReadMetrics(resourceID, intervalSeconds, endTime);
+
+        Console.WriteLine($"Sending data to PowerBI endpoint {targetEndpoint}");
+        try
+        {
+          await sender.SendMetrics(targetEndpoint, metricsOut);
+        }
+        catch (Exception e)
+        {
+          Console.WriteLine("Failed to send metrics:");
+          Console.WriteLine(e.Message);
+        }
+        Console.WriteLine($"Success");
+
+        // set up for the next cycle
+        endTime = endTime.AddSeconds(intervalSeconds);
+      }
+
+
 
     }
   }
