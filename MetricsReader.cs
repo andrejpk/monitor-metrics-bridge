@@ -25,13 +25,14 @@ namespace monitor_metrics_bridge
   public class MetricsReader
   {
     private static readonly HttpClient client = new HttpClient();
+    private string subscriptionID;
     // private string TenantID, ClientID, Secret, SubscriptionID;
     private AzureCredentials _credentials;
     private IAzure _azure;
 
     public MetricsReader(string tenantID, string clientID, string secret, string subscriptionID)
     {
-
+      this.subscriptionID = subscriptionID;
       // (TenantID, ClientID, Secret, SubscriptionID) = (tenantID, clientID, secret, subscriptionID);
       Console.WriteLine($"Authenticating to Azure");
       _credentials = SdkContext.AzureCredentialsFactory
@@ -41,7 +42,7 @@ namespace monitor_metrics_bridge
         .WithDefaultSubscription();
     }
 
-    public async Task<IList<Metric>> ReadMetrics(string resourceID, int intervalSeconds)
+    public async Task<IList<Metric>> ReadMetrics(string resourceID, int windowSeconds, DateTime? endTime = null)
     {
       // supported metrics list: https://docs.microsoft.com/en-us/azure/azure-monitor/platform/metrics-supported
 
@@ -50,8 +51,8 @@ namespace monitor_metrics_bridge
 
       var metricDefs = await _azure.MetricDefinitions.ListByResourceAsync(resourceID);
 
-      var endTime = DateTime.UtcNow;
-      var startTime = endTime.AddSeconds(-intervalSeconds);
+      var endTimeChecked = (endTime ?? DateTime.UtcNow);
+      var startTime = endTimeChecked.AddSeconds(-windowSeconds);
       var metricsOut = new List<Metric>();
 
       foreach (var md in metricDefs)
@@ -59,7 +60,7 @@ namespace monitor_metrics_bridge
         Console.WriteLine($"{md.Name.Value} : {md.Unit} : {md.PrimaryAggregationType.ToString()}");
         var metricsColl = await md.DefineQuery()
           .StartingFrom(startTime)
-          .EndsBefore(endTime)
+          .EndsBefore(endTimeChecked)
           .ExecuteAsync();
 
         foreach (var metric in metricsColl.Metrics)
@@ -68,8 +69,22 @@ namespace monitor_metrics_bridge
           {
             foreach (var data in ts.Data)
             {
-              Console.WriteLine($"Total: {data.Total} Count: {data.Count} Timestamp: {data.TimeStamp.ToShortTimeString()}");
-              metricsOut.Add(new Metric("", resourceID, md.Name.Value, endTime, data.Total));
+              Console.WriteLine($"Total: {data.Total} Average: {data.Average}Count: {data.Count} Timestamp: {data.TimeStamp.ToShortTimeString()}");
+              metricsOut.Add(new Metric
+              {
+                SubscriptionID = subscriptionID,
+                ResourceGroupName = "",
+                ResourceName = resourceID,
+                MetricName = md.Name.Value,
+                WindowStart = startTime,
+                WindowEnd = endTimeChecked,
+                TimeStamp = data.TimeStamp,
+                Total = data.Total,
+                Average = data.Average,
+                Count = data.Count,
+                Maximum = data.Maximum,
+                Minimum = data.Minimum
+              });
             }
           }
         }

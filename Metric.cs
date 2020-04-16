@@ -5,16 +5,19 @@ namespace monitor_metrics_bridge
 {
   public class Metric
   {
-    public Metric(string resourceGroupName, string resourceName, string metricName, DateTime timeStamp, Double? data) =>
-      (this.ResourceGroupName, this.ResourceName, this.MetricName, this.TimeStamp, this.Data) =
-      (resourceGroupName, resourceName, metricName, timeStamp, data);
-
-    public string ResourceGroupName { get; }
-
-    public string ResourceName { get; }
-    public string MetricName { get; }
-    public DateTime TimeStamp { get; }
-    public Double? Data { get; }
+    public string SubscriptionID { get; set; }
+    public string ResourceGroupName { get; set; }
+    public string ResourceName { get; set; }
+    public string MetricName { get; set; }
+    public DateTime WindowStart { get; set; }
+    public DateTime WindowEnd { get; set; }
+    public DateTime TimeStamp { get; set; }
+    public Double? Total { get; set; }
+    public Double? DeltaTotal { get; set; }
+    public Double? Count { get; set; }
+    public Double? Minimum { get; set; }
+    public Double? Maximum { get; set; }
+    public Double? Average { get; set; }
   }
 
 }
