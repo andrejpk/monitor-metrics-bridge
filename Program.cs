@@ -55,13 +55,14 @@ namespace monitor_metrics_bridge
         try
         {
           await sender.SendMetrics(targetEndpoint, metricsOut);
+          Console.WriteLine("Metrics sent successfully");
         }
         catch (Exception e)
         {
           Console.WriteLine("Failed to send metrics:");
           Console.WriteLine(e.Message);
         }
-        Console.WriteLine($"Success");
+        Console.WriteLine($"Done with cycle");
 
         // set up for the next cycle
         endTime = endTime.AddSeconds(intervalSeconds);
